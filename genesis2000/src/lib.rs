@@ -1,4 +1,4 @@
-pub mod genesis;
+mod genesis;
 pub use crate::genesis::{Genesis, InfoParamType};
 
 pub fn add(left: usize, right: usize) -> usize {
