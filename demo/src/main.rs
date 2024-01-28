@@ -1,6 +1,6 @@
 use std::{collections::HashMap, io::*};
 
-use genesis2000::{genesis::InfoParamType, Genesis};
+use genesis2000::{Genesis, InfoParamType};
 
 fn main() {
     let mut f = Genesis::new();

@@ -1,5 +1,5 @@
 pub mod genesis;
-pub use crate::genesis::Genesis;
+pub use crate::genesis::{Genesis, InfoParamType};
 
 pub fn add(left: usize, right: usize) -> usize {
     left + right
