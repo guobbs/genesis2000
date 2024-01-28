@@ -195,7 +195,7 @@ impl Genesis {
     pub fn print_doinfo_array_values(&self) {
         for (k, v) in &self.doinfo_array_values {
             std::io::stdout()
-                .write(format!("{} => {}\n", k, v.len()).as_bytes())
+                .write(format!("{} => {:?}\n", k, v).as_bytes())
                 .unwrap();
         }
     }
