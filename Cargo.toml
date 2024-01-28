@@ -1,10 +1,2 @@
-[package]
-name = "genesis2000"
-version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-atty = "0.2.14"
-regex = "1.8.1"
+[workspace]
+members = [ "demo","genesis2000"]
