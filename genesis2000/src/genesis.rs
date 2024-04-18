@@ -3,11 +3,13 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
-use std::io::{self, Write};
+use std::io::Write;
+use std::net::TcpStream;
 use std::sync::OnceLock;
 
 static DIR_PREFIX: &'static str = "@%#%@";
 static NULL_STRING: &'static str = "";
+const PORT: u16 = 56753;
 
 #[derive(PartialEq, Hash, Eq)]
 pub enum InfoParamType {
@@ -34,11 +36,21 @@ pub struct Genesis {
     doinfo_array_values: HashMap<String, Vec<String>>, // 数组值
 
     atty: bool,
+
+    socket: Option<TcpStream>,
+}
+
+impl Drop for Genesis {
+    fn drop(&mut self) {
+        if self.atty {
+            self.send_command("CLOSEDOWN", "");
+        }
+    }
 }
 
 impl Genesis {
     pub fn new() -> Self {
-        let ret = Genesis {
+        let mut ret = Genesis {
             COMANS: String::from(""),
             READANS: String::from(""),
             STATUS: String::from(""),
@@ -47,10 +59,44 @@ impl Genesis {
             doinfo_single_values: HashMap::<String, String>::new(),
             doinfo_array_values: HashMap::<String, Vec<String>>::new(),
 
-            atty: atty::is(atty::Stream::Stdout),
+            // atty: atty::is(atty::Stream::Stdout),
+            atty: false,
+            socket: None,
         };
 
+        if cfg!(debug_assertions) || atty::is(atty::Stream::Stdout) {
+            ret.atty = true;
+            println!("Genesis script is running in debug mode.");
+            ret.socket = ret.open_socket();
+
+            ret.inherit_environment();
+        }
+
         ret
+    }
+
+    fn open_socket(&self) -> Option<TcpStream> {
+        let addr = format!("127.0.0.1:{PORT}");
+        let ss = TcpStream::connect(addr).expect("Genesis server is not running.");
+        Some(ss)
+    }
+
+    fn inherit_environment(&mut self) {
+        self.send_command("GETENVIRONMENT", "");
+        loop {
+            let mut buf_reader = self.get_buf_reader();
+            let line = Self::get_reply(self.atty, buf_reader.as_mut());
+            if line.starts_with("END") {
+                break;
+            }
+            let mut iter = line.split("=");
+            let key = iter.next().unwrap();
+            let value = iter.next().unwrap();
+            std::env::set_var(key, value);
+        }
+
+        std::env::remove_var("LC_MESSAGES");
+        std::env::remove_var("LC__FASTMSG");
     }
 
     #[allow(non_snake_case)]
@@ -76,33 +122,64 @@ impl Genesis {
     #[allow(non_snake_case)]
     pub fn PAUSE(&mut self, command: &str) {
         self.send_command("PAUSE", command);
-        self.STATUS = self.get_reply();
-        self.READANS = self.get_reply();
-        self.PAUSANS = self.get_reply();
+        let res = || -> (String, String, String) {
+            let mut buf_reader = self.get_buf_reader();
+            let STATUS = Self::get_reply(self.atty, buf_reader.as_mut());
+            let READANS = Self::get_reply(self.atty, buf_reader.as_mut());
+            let PAUSANS = Self::get_reply(self.atty, buf_reader.as_mut());
+            (STATUS, READANS, PAUSANS)
+        }();
+
+        self.STATUS = res.0;
+        self.READANS = res.1;
+        self.PAUSANS = res.2;
     }
 
     #[allow(non_snake_case)]
     pub fn MOUSE(&mut self, command: &str) {
         self.send_command("MOUSE", command);
-        self.STATUS = self.get_reply();
-        self.READANS = self.get_reply();
-        self.MOUSEANS = self.get_reply();
+        let res = || -> (String, String, String) {
+            let mut buf_reader = self.get_buf_reader();
+            let STATUS = Self::get_reply(self.atty, buf_reader.as_mut());
+            let READANS = Self::get_reply(self.atty, buf_reader.as_mut());
+            let MOUSEANS = Self::get_reply(self.atty, buf_reader.as_mut());
+            (STATUS, READANS, MOUSEANS)
+        }();
+
+        self.STATUS = res.0;
+        self.READANS = res.1;
+        self.MOUSEANS = res.2;
     }
 
     #[allow(non_snake_case)]
     pub fn COM(&mut self, command: &str) {
         self.send_command("COM", command);
-        self.STATUS = self.get_reply();
-        self.READANS = self.get_reply();
+
+        let res = || -> (String, String) {
+            let mut buf_reader = self.get_buf_reader();
+            let STATUS = Self::get_reply(self.atty, buf_reader.as_mut());
+            let READANS = Self::get_reply(self.atty, buf_reader.as_mut());
+            (STATUS, READANS)
+        }();
+
+        self.STATUS = res.0;
+        self.READANS = res.1;
         self.COMANS = self.READANS.clone();
     }
 
     #[allow(non_snake_case)]
     pub fn AUX(&mut self, command: &str) {
         self.send_command("AUX", command);
-        self.STATUS = self.get_reply();
-        self.READANS = self.get_reply();
-        self.COMANS = self.get_reply();
+        let res = || -> (String, String) {
+            let mut buf_reader = self.get_buf_reader();
+            let STATUS = Self::get_reply(self.atty, buf_reader.as_mut());
+            let READANS = Self::get_reply(self.atty, buf_reader.as_mut());
+            (STATUS, READANS)
+        }();
+
+        self.STATUS = res.0;
+        self.READANS = res.1;
+        self.COMANS = self.READANS.clone();
     }
 
     #[allow(non_snake_case)]
@@ -185,18 +262,14 @@ impl Genesis {
     /// @note 仅供测试使用
     pub fn print_doinfo_single_values(&self) {
         for (k, v) in &self.doinfo_single_values {
-            std::io::stdout()
-                .write(format!("{} => {}\n", k, v).as_bytes())
-                .unwrap();
+            println!("{} => {}", k, v);
         }
     }
 
     /// @note 仅供测试使用
     pub fn print_doinfo_array_values(&self) {
         for (k, v) in &self.doinfo_array_values {
-            std::io::stdout()
-                .write(format!("{} => {:?}\n", k, v).as_bytes())
-                .unwrap();
+            println!("{} => {:?}", k, v);
         }
     }
 
@@ -298,11 +371,29 @@ impl Genesis {
         }
     }
 
+    fn get_buf_reader(&self) -> Option<BufReader<&TcpStream>> {
+        let mut buf_reader = None;
+        if self.atty {
+            assert!(self.socket.is_some());
+            buf_reader = Some(BufReader::new(self.socket.as_ref().unwrap()));
+        }
+        buf_reader
+    }
+
     #[allow(unused_must_use)]
-    fn get_reply(&self) -> String {
-        let mut line = String::new();
-        io::stdin().read_line(&mut line);
-        line
+    fn get_reply(atty: bool, buf_reader: Option<&mut BufReader<&TcpStream>>) -> String {
+        if atty {
+            assert!(buf_reader.is_some());
+            let mut line = String::new();
+            buf_reader.unwrap().read_line(&mut line).unwrap();
+            line.pop(); // remove '\n'
+            line
+        } else {
+            let mut line = String::new();
+            std::io::stdin().read_line(&mut line);
+            line.pop(); // remove '\n'
+            line
+        }
     }
 
     fn blank_status_results(&mut self) {
@@ -328,12 +419,16 @@ impl Genesis {
 
     #[allow(unused_must_use)]
     fn send_command_to_pipe(&mut self, command: &str) {
-        io::stdout().write(command.as_bytes());
-        io::stdout().flush();
+        std::io::stdout().write(command.as_bytes());
+        std::io::stdout().flush();
     }
 
     fn send_command_to_socket(&mut self, _command: &str) {
-        todo!("send_command_to_socket not implemented")
+        assert!(self.socket.is_some());
+        if let Some(ss) = &mut self.socket {
+            ss.write(_command.as_bytes()).unwrap();
+            ss.flush().unwrap();
+        }
     }
 }
 
