@@ -1,7 +1,13 @@
 [package]
 name = "genesis2000"
+authors = ["GUO <guobbs@live.com> <>"]
 version = "0.1.0"
 edition = "2021"
+description = "Genesis2000 script development interface"
+license = "MIT"
+repository = "https://github.com/guobbs/genesis2000.git"
+keywords = ["genesis2000", "genesis"]
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
