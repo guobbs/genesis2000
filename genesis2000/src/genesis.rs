@@ -25,15 +25,15 @@ pub enum InfoParamType {
 
 #[allow(non_snake_case)]
 pub struct Genesis {
-    pub COMANS: String,
-    pub READANS: String,
-    pub STATUS: String,
+    pub COMANS: String,    // COM results
+    pub READANS: String,    // COM results
+    pub STATUS: String,     // status code
 
-    pub MOUSEANS: String,
-    pub PAUSANS: String,
+    pub MOUSEANS: String,   // MOUSE results
+    pub PAUSANS: String,    // PAUSE results
 
-    doinfo_single_values: HashMap<String, String>, // 单值
-    doinfo_array_values: HashMap<String, Vec<String>>, // 数组值
+    doinfo_single_values: HashMap<String, String>,    // single value of info results
+    doinfo_array_values: HashMap<String, Vec<String>>,   // array value of info results
 
     atty: bool,
 
@@ -251,22 +251,24 @@ impl Genesis {
         std::fs::remove_file(&csh_file).unwrap();
     }
 
+    /// Get single value from info results
     pub fn get_info_single_value(&self, key: &str) -> Option<&String> {
         self.doinfo_single_values.get(key)
     }
 
+    /// Get array value from info results
     pub fn get_info_array_value(&self, key: &str) -> Option<&Vec<String>> {
         self.doinfo_array_values.get(key)
     }
 
-    /// @note 仅供测试使用
+    /// For testing purposes only
     pub fn print_doinfo_single_values(&self) {
         for (k, v) in &self.doinfo_single_values {
             println!("{} => {}", k, v);
         }
     }
 
-    /// @note 仅供测试使用
+    /// For testing purposes only
     pub fn print_doinfo_array_values(&self) {
         for (k, v) in &self.doinfo_array_values {
             println!("{} => {:?}", k, v);
